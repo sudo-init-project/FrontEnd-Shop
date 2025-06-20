@@ -10,7 +10,7 @@ env:
   DOCKER_USERNAME: facundo676
   IMAGE_NAME: frontend-shop
   INFRA_REPO: sudo-init-project/Infra-App-K8s
-  CI: false  # ← Deshabilitar warnings como errores
+  CI: false
 
 jobs:
   build-and-deploy:
@@ -35,7 +35,7 @@ jobs:
     - name: Build application
       run: npm run build
       env:
-        CI: false  # ← Deshabilitar warnings como errores
+        CI: false
         
     - name: Generate tags
       id: meta
@@ -61,38 +61,82 @@ jobs:
           ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
           ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
           ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.short_sha }}
-          
-    - name: Update infrastructure repository
+
+  update-infra:
+    needs: build-and-deploy
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout infrastructure repository
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ env.INFRA_REPO }}
+        token: ${{ secrets.INFRA_TOKEN }}
+        path: infra
+        
+    - name: Set up variables
+      id: vars
       run: |
-        git config --global user.name "CI Bot"
-        git config --global user.email "ci-bot@github.com"
+        SHORT_SHA=${GITHUB_SHA::7}
+        TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+        echo "version=${TIMESTAMP}-${SHORT_SHA}" >> $GITHUB_OUTPUT
         
         # Determinar ambiente basado en branch/tag
         if [[ "${{ github.ref }}" == "refs/heads/main" ]] || [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
-          ENV="staging"
+          echo "env=staging" >> $GITHUB_OUTPUT
         elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-          ENV="production"
+          echo "env=production" >> $GITHUB_OUTPUT
         else
-          ENV="dev"
+          echo "env=dev" >> $GITHUB_OUTPUT
         fi
         
+    - name: Update infrastructure files
+      working-directory: infra
+      run: |
+        ENV="${{ steps.vars.outputs.env }}"
+        NEW_TAG="${{ steps.vars.outputs.version }}"
+        
         echo "🎯 Actualizando ambiente: $ENV"
+        echo "🔍 New tag: $NEW_TAG"
         
-        # Clone infra repo
-        git clone https://${{ secrets.INFRA_TOKEN }}@github.com/${{ env.INFRA_REPO }}.git infra
-        cd infra
-        
-        # Update specific environment
+        # Update specific environment in overlays
         if [ -f "overlays/$ENV/kustomization.yaml" ]; then
-          sed -i "s|${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:.*|${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}|g" overlays/$ENV/kustomization.yaml
+          echo "📝 Updating overlays/$ENV/kustomization.yaml"
+          sed -i "s|${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:.*|${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:$NEW_TAG|g" overlays/$ENV/kustomization.yaml
         fi
         
         # Update tags file
         if [ -f "tags/frontend-tag.yaml" ]; then
-          sed -i "s|newTag:.*|newTag: ${{ steps.meta.outputs.version }}|g" tags/frontend-tag.yaml
+          echo "📝 Updating tags/frontend-tag.yaml"
+          sed -i "s|newTag:.*|newTag: $NEW_TAG|g" tags/frontend-tag.yaml
         fi
+        
+        # Update base kustomization if exists
+        if [ -f "base/kustomization.yaml" ]; then
+          echo "📝 Updating base/kustomization.yaml"
+          sed -i "s|${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:.*|${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:$NEW_TAG|g" base/kustomization.yaml
+        fi
+        
+    - name: Commit and push changes
+      working-directory: infra
+      run: |
+        git config --local user.email "ci-bot@github.com"
+        git config --local user.name "CI Bot"
+        
+        # Check if there are changes to commit
+        if git diff --quiet; then
+          echo "🟢 No changes to commit"
+          exit 0
+        fi
+        
+        # Show changes
+        echo "📋 Changes to be committed:"
+        git diff --name-only
+        git status
         
         # Commit and push
         git add .
-        git commit -m "🚀 Update frontend ($ENV) to ${{ steps.meta.outputs.version }}" || echo "No changes to commit"
+        git commit -m "🚀 Update frontend (${{ steps.vars.outputs.env }}) to ${{ steps.vars.outputs.version }}"
         git push
+        
+        echo "✅ Successfully updated infrastructure repository"
