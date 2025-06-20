@@ -1,73 +1,80 @@
+name: Frontend CI/CD
+
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, master ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, master ]
 
 env:
-  REGISTRY: docker.io
-  IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/ejercicio2-frontend
+  DOCKER_USERNAME: facundo676
+  IMAGE_NAME: frontend-shop
+  INFRA_REPO: sudo-init-project/Infra-App-K8s
 
 jobs:
-  test:
+  build-and-deploy:
     runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
     
-    - name: Setup Node.js
-      uses: actions/setup-node@v3
+    steps:
+    - name: Checkout frontend code
+      uses: actions/checkout@v4
+      
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
       with:
         node-version: '18'
         cache: 'npm'
-    
+        
     - name: Install dependencies
       run: npm ci
-    
+      
     - name: Run tests
-      run: npm test -- --passWithNoTests
-
-  build-and-push:
-    needs: test
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
-    
+      run: npm test -- --coverage --passWithNoTests
+      
+    - name: Build application
+      run: npm run build
+      
+    - name: Generate tags
+      id: meta
+      run: |
+        SHORT_SHA=${GITHUB_SHA::7}
+        TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+        echo "short_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
+        echo "timestamp=${TIMESTAMP}" >> $GITHUB_OUTPUT
+        echo "version=${TIMESTAMP}-${SHORT_SHA}" >> $GITHUB_OUTPUT
+        
     - name: Log in to Docker Hub
-      uses: docker/login-action@v2
+      uses: docker/login-action@v3
       with:
-        username: ${{ secrets.DOCKER_USERNAME }}
+        username: ${{ env.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
-    
-    - name: Generate version
-      id: version
-      run: echo "VERSION=$(date +'%Y%m%d-%H%M%S')-${GITHUB_SHA::8}" >> $GITHUB_OUTPUT
-    
-    - name: Build and push
-      uses: docker/build-push-action@v4
+        
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
       with:
         context: .
         push: true
         tags: |
-          ${{ env.IMAGE_NAME }}:latest
-          ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
-
-    - name: Update K8s manifests
+          ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+          ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
+          ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.short_sha }}
+          
+    - name: Update infrastructure repository
       run: |
-        # Clonar repo de infra
-        git clone https://x-access-token:${{ secrets.INFRA_REPO_TOKEN }}@github.com/${{ github.repository_owner }}/Infra-App-K8s.git
-        cd Infra-App-K8s
+        git config --global user.name "CI Bot"
+        git config --global user.email "ci@example.com"
         
-        # Actualizar imagen
-        sed -i "s|image: .*/ejercicio2-frontend:.*|image: ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}|g" front/deployment.yaml
+        # Clone infra repo
+        git clone https://${{ secrets.INFRA_TOKEN }}@github.com/${{ env.INFRA_REPO }}.git infra
+        cd infra
         
-        # Commit y push
-        git config user.name "GitHub Actions"
-        git config user.email "actions@github.com"
-        git add front/deployment.yaml
-        git commit -m "Update frontend image to ${{ steps.version.outputs.VERSION }}"
+        # Update tags
+        sed -i "s|newTag:.*|newTag: ${{ steps.meta.outputs.version }}|g" tags/frontend-tag.yaml
+        
+        # Update overlays
+        find overlays -name "kustomization.yaml" -exec sed -i "s|${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:.*|${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}|g" {} \;
+        
+        # Commit and push
+        git add .
+        git commit -m "🚀 Update frontend image to ${{ steps.meta.outputs.version }}"
         git push
