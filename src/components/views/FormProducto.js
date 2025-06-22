@@ -41,16 +41,16 @@ const FormProducto = () => {
 
     if (Object.values(formErrors).every((error) => error === "")) {
       try {
-        
-        const response = await request("POST", "http://localhost:8080/productos", producto);
+
+        const response = await request("POST", "/productos", producto);
 
         if (response.status === 200) {
           console.log(response.data);
           navigate("/inicio");
-        } 
+        }
 
       } catch (error) {
-        
+
         if (error.response && error.response.data) {
           const customError = error.response.data;
           setErrorForm(customError.message);
@@ -157,7 +157,7 @@ const FormProducto = () => {
           Guardar producto
         </button>
         <Link to={"/inicio"} className="btn btn-primary mt-3 mb-3 align-self-center">Volver</Link>
-        
+
       </form>
 
     </div>

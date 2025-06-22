@@ -30,9 +30,9 @@ const FormModificarProducto = () => {
 
     const getProducto = async () => {
       try {
-        
-        const response = await request("GET",`http://localhost:8080/productos/${id}`,"");
-        
+
+        const response = await request("GET",`/productos/${id}`,"");
+
         setProducto(response.data);
       } catch (error) {
         setErrors(error);
@@ -44,9 +44,9 @@ const FormModificarProducto = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-  
+
     const formErrors = {};
-  
+
     if (!producto.codigoEan) formErrors.codigoEan = "Ingrese el codigo ean.";
     if (!producto.nombre) formErrors.nombre = "Ingrese el nombre.";
     if (!producto.descripcion) formErrors.descripcion = "Ingrese la descripción.";
@@ -54,12 +54,12 @@ const FormModificarProducto = () => {
     if (!producto.marca) formErrors.marca = "Ingrese la marca.";
     if (!producto.precio) formErrors.precio = "Ingrese el precio.";
     if (!producto.stock) formErrors.stock = "Ingrese el stock.";
-  
+
     if (Object.keys(formErrors).length === 0) {
       try {
-      
-        const response = await request("PUT", "http://localhost:8080/productos", producto);
-  
+
+        const response = await request("PUT", "/productos", producto);
+
         if (response.status === 200) {
           console.log(response.data);
           navigate("/inicio");

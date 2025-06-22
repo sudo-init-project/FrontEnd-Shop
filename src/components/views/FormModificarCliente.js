@@ -28,9 +28,9 @@ const FormModificarCliente = () => {
 
     const getCliente = async () => {
       try {
-        
-        const response = await request("GET",`http://localhost:8080/clientes/${id}`,"");
-        
+
+        const response = await request("GET",`/clientes/${id}`,"");
+
         setCliente(response.data);
       } catch (error) {
         setErrors(error);
@@ -42,20 +42,20 @@ const FormModificarCliente = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-  
+
     const formErrors = {};
-  
+
     if (!cliente.nombre) formErrors.nombre = "Ingrese el nombre.";
     if (!cliente.apellido) formErrors.apellido = "Ingrese el apellido.";
     if (!cliente.fechaIngreso) formErrors.fechaIngreso = "Ingrese la fecha de ingreso.";
     if (!cliente.domicilio) formErrors.domicilio = "Ingrese el domicilio.";
     if (!cliente.telefono) formErrors.telefono = "Ingrese la teléfono.";
-  
+
     if (Object.keys(formErrors).length === 0) {
       try {
-      
-        const response = await request("PUT", "http://localhost:8080/clientes", cliente);
-  
+
+        const response = await request("PUT", "/clientes", cliente);
+
         if (response.status === 200) {
           console.log(response.data);
           navigate("/inicio");

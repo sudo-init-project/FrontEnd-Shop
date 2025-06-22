@@ -11,8 +11,8 @@ const Inicio = ({ tituloTablaProductos, tituloTablaClientes }) => {
 
     const getData = async () => {
         try {
-            const responseProductos = await request("GET", "http://localhost:8080/productos", "")
-            const responseClientes = await request("GET", "http://localhost:8080/clientes", "")
+            const responseProductos = await request("GET", "/productos", "")
+            const responseClientes = await request("GET", "/clientes", "")
 
             setProductos(responseProductos.data);
             setClientes(responseClientes.data);
@@ -30,7 +30,7 @@ const Inicio = ({ tituloTablaProductos, tituloTablaClientes }) => {
 
     const handleDeleteProducto = async (id) => {
         try {
-            await request("DELETE", `http://localhost:8080/productos/${id}`)
+            await request("DELETE", `/productos/${id}`)
 
             getData();
         } catch (error) {
@@ -40,7 +40,7 @@ const Inicio = ({ tituloTablaProductos, tituloTablaClientes }) => {
 
     const handleDeleteCliente = async (id) => {
         try {
-            await request("DELETE", `http://localhost:8080/clientes/${id}`)
+            await request("DELETE", `/clientes/${id}`)
 
             getData();
         } catch (error) {

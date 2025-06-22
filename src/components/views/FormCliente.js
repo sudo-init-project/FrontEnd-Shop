@@ -37,16 +37,16 @@ const FormCliente = () => {
 
     if (Object.values(formErrors).every((error) => error === "")) {
       try {
-        
-        const response = await request("POST", "http://localhost:8080/clientes", cliente);
+
+        const response = await request("POST", "/clientes", cliente);
 
         if (response.status === 200) {
           console.log(response.data);
           navigate("/inicio");
-        } 
+        }
 
       } catch (error) {
-        
+
         if (error.response && error.response.data) {
           const customError = error.response.data;
           setErrorForm(customError.message);
