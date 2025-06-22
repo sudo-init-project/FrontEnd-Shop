@@ -19,7 +19,7 @@ const Login = () => {
       e.preventDefault();
   
       try {
-        const response = await axios.post('http://localhost:8080/auth/login', credenciales);
+        const response = await axios.post('/auth/login', credenciales);
   
         if (response.data.token) {
           const authToken = response.data.token;
