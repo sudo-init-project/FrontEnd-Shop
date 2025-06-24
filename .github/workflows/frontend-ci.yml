@@ -15,28 +15,28 @@ env:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout frontend code
       uses: actions/checkout@v4
-      
+
     - name: Set up Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '18'
         cache: 'npm'
-        
+
     - name: Install dependencies
       run: npm ci
-      
+
     - name: Run tests
       run: npm test -- --coverage --passWithNoTests --watchAll=false
-      
+
     - name: Build application
       run: npm run build
       env:
         CI: false
-        
+
     - name: Generate tags
       id: meta
       run: |
@@ -45,17 +45,18 @@ jobs:
         echo "short_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
         echo "timestamp=${TIMESTAMP}" >> $GITHUB_OUTPUT
         echo "version=${TIMESTAMP}-${SHORT_SHA}" >> $GITHUB_OUTPUT
-        
+
     - name: Log in to Docker Hub
       uses: docker/login-action@v3
       with:
         username: ${{ env.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
-        
+
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
         context: .
+        file: ./Dockerfile
         push: true
         tags: |
           ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
@@ -65,7 +66,7 @@ jobs:
   update-infra:
     needs: build-and-deploy
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout infrastructure repository
       uses: actions/checkout@v4
@@ -73,14 +74,14 @@ jobs:
         repository: ${{ env.INFRA_REPO }}
         token: ${{ secrets.INFRA_TOKEN }}
         path: infra
-        
+
     - name: Set up variables
       id: vars
       run: |
         SHORT_SHA=${GITHUB_SHA::7}
         TIMESTAMP=$(date +%Y%m%d-%H%M%S)
         echo "version=${TIMESTAMP}-${SHORT_SHA}" >> $GITHUB_OUTPUT
-        
+
         # Determinar ambiente basado en branch/tag
         if [[ "${{ github.ref }}" == "refs/heads/main" ]] || [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
           echo "env=staging" >> $GITHUB_OUTPUT
@@ -89,54 +90,48 @@ jobs:
         else
           echo "env=dev" >> $GITHUB_OUTPUT
         fi
-        
+
     - name: Update infrastructure files
       working-directory: infra
       run: |
         ENV="${{ steps.vars.outputs.env }}"
         NEW_TAG="${{ steps.vars.outputs.version }}"
-        
+
         echo "🎯 Actualizando ambiente: $ENV"
         echo "🔍 New tag: $NEW_TAG"
-        
-        # Update specific environment in overlays
+
         if [ -f "overlays/$ENV/kustomization.yaml" ]; then
           echo "📝 Updating overlays/$ENV/kustomization.yaml"
           sed -i "s|${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:.*|${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:$NEW_TAG|g" overlays/$ENV/kustomization.yaml
         fi
-        
-        # Update tags file
+
         if [ -f "tags/frontend-tag.yaml" ]; then
           echo "📝 Updating tags/frontend-tag.yaml"
           sed -i "s|newTag:.*|newTag: $NEW_TAG|g" tags/frontend-tag.yaml
         fi
-        
-        # Update base kustomization if exists
+
         if [ -f "base/kustomization.yaml" ]; then
           echo "📝 Updating base/kustomization.yaml"
           sed -i "s|${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:.*|${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:$NEW_TAG|g" base/kustomization.yaml
         fi
-        
+
     - name: Commit and push changes
       working-directory: infra
       run: |
         git config --local user.email "ci-bot@github.com"
         git config --local user.name "CI Bot"
-        
-        # Check if there are changes to commit
+
         if git diff --quiet; then
           echo "🟢 No changes to commit"
           exit 0
         fi
-        
-        # Show changes
+
         echo "📋 Changes to be committed:"
         git diff --name-only
         git status
-        
-        # Commit and push
+
         git add .
         git commit -m "🚀 Update frontend (${{ steps.vars.outputs.env }}) to ${{ steps.vars.outputs.version }}"
         git push
-        
+
         echo "✅ Successfully updated infrastructure repository"
