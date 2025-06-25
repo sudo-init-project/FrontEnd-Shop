@@ -102,6 +102,7 @@ jobs:
 
         if [ -f "overlays/$ENV/kustomization.yaml" ]; then
           echo "📝 Updating overlays/$ENV/kustomization.yaml"
+          sed -i "s|newTag:.*|newTag: $NEW_TAG|g" overlays/$ENV/kustomization.yaml
         fi
 
         if [ -f "tags/frontend-tag.yaml" ]; then
