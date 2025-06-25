@@ -1,25 +1,37 @@
-# Imagen base para producción con Nginx
+# Dockerfile para frontend React con Nginx corregido
+FROM node:18-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+
+# Instalar dependencias para primera vez
+RUN npm install
+COPY . .
+RUN npm run build
+
 FROM nginx:alpine
 
-# Copiar archivos ya construidos (desde el directorio 'build' generado por React)
-COPY build /usr/share/nginx/html
+# Copiar archivos build
+COPY --from=builder /app/build /usr/share/nginx/html
 
-# Configuración personalizada de Nginx para React Router y proxy API
+# Crear configuración de Nginx para React Router
 RUN echo 'server { \
     listen 80; \
     server_name localhost; \
     root /usr/share/nginx/html; \
     index index.html; \
     \
+    # Configuración para React Router \
     location / { \
         try_files $uri $uri/ /index.html; \
     } \
     \
+    # Cache para assets estáticos \
     location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ { \
         expires 1y; \
         add_header Cache-Control "public, immutable"; \
     } \
     \
+    # Proxy para API del backend \
     location /api/ { \
         proxy_pass http://backend-service:8080/; \
         proxy_set_header Host $host; \
@@ -35,5 +47,4 @@ RUN echo 'server { \
 }' > /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
-
 CMD ["nginx", "-g", "daemon off;"]
