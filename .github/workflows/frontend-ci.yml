@@ -80,7 +80,6 @@ jobs:
       run: |
         SHORT_SHA=${GITHUB_SHA::7}
         TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-        echo "version=${TIMESTAMP}-${SHORT_SHA}" >> $GITHUB_OUTPUT
 
         # Determinar ambiente basado en branch/tag
         if [[ "${{ github.ref }}" == "refs/heads/main" ]] || [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
