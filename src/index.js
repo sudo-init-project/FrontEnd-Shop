@@ -18,7 +18,7 @@ root.render(
     <BrowserRouter>
       <Routes>
         <Route path='/' element={<App />}>
-          <Route path='/inicio' element={<Inicio tituloTablaProductos={"Listado de Productos EGI FINAL xd "} tituloTablaClientes={"Listado de Clientes"}/>} /> {/*Aquí paso el título de la tabla por prop*/}
+          <Route path='/inicio' element={<Inicio tituloTablaProductos={"Listado de Productos EGI FINAL "} tituloTablaClientes={"Listado de Clientes"}/>} /> {/*Aquí paso el título de la tabla por prop*/}
           
           <Route path='/productos/agregar' element={<FormProducto />} />
           <Route path='/productos/modificar/:id' element={<FormModificarProducto />} />
