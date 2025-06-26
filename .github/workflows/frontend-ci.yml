@@ -15,7 +15,10 @@ env:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      short_sha: ${{ steps.meta.outputs.short_sha }}
+      
     steps:
     - name: Checkout frontend code
       uses: actions/checkout@v4
@@ -44,7 +47,7 @@ jobs:
         TIMESTAMP=$(date +%Y%m%d-%H%M%S)
         echo "short_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
         echo "timestamp=${TIMESTAMP}" >> $GITHUB_OUTPUT
-        echo "VERSION=${TIMESTAMP}-${SHORT_SHA}" >> $GITHUB_ENV
+        echo "version=${TIMESTAMP}-${SHORT_SHA}" >> $GITHUB_OUTPUT
        
     - name: Log in to Docker Hub
       uses: docker/login-action@v3
@@ -60,7 +63,7 @@ jobs:
         push: true
         tags: |
           ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
-          ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.VERSION }}
+          ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
           ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.short_sha }}
 
   update-infra:
@@ -80,6 +83,8 @@ jobs:
       run: |
         SHORT_SHA=${GITHUB_SHA::7}
         TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+        VERSION="${{ needs.build-and-deploy.outputs.version }}"
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
 
         # Determinar ambiente basado en branch/tag
         if [[ "${{ github.ref }}" == "refs/heads/main" ]] || [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
